@@ -3,9 +3,9 @@
 include '../components/authenticate.php';
 
 $hostname = 'backend-mysql-database';
-$username = 'user';
-$password = 'supersecretpw';
-$database = 'password_manager';
+$username = getenv('MYSQL_USER');
+$password = getenv('MYSQL_PASSWORD');
+$database = getenv('MYSQL_DATABASE');
 
 $conn = new mysqli($hostname, $username, $password, $database);
 
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       
                       // Redirect to the current page after handling a POST
                       header("Location: {$_SERVER['PHP_SELF']}");
-                      exit();
+                      exit();   
                 }
                 break;
 

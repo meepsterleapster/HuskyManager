@@ -1,5 +1,5 @@
 <?php
-
+include '../components/loggly-logger.php';
 // Replace with your database connection details
 $hostname = 'backend-mysql-database';
 $username = 'user';
@@ -168,11 +168,11 @@ if (!$resultPasswords) {
 }
 
 $queryVaultOwner = "SELECT *
-                    FROM vault_permissions, users
-                    WHERE vault_permissions.vault_id = $vaultId
-                    AND vault_permissions.role_id = 1
-                    AND vault_permissions.user_id = users.user_id
-                    AND users.username = '" . $_COOKIE['authenticated'] . "'";
+            FROM vault_permissions, users
+            WHERE vault_permissions.vault_id = $vaultId
+            AND vault_permissions.role_id = 1
+            AND vault_permissions.user_id = users.user_id
+            AND users.username = '" . $_SESSION['authenticated'] . "'";
 
 $resultIsOwner = $conn->query($queryVaultOwner);
 
@@ -204,6 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset ($_POST['deleteFilePasswordId
                 // Now update the file path in the database to NULL
                 $queryUpdateFilePath = "UPDATE vault_passwords SET file_path = NULL WHERE password_id = $deleteFilePasswordId";
                 $resultUpdateFilePath = $conn->query($queryUpdateFilePath);
+                $logger->warning("$username deleted file associated with password ID: $deleteFilePasswordId");
 
                 if (!$resultUpdateFilePath) {
                     die ('A fatal error occurred and has been logged.');

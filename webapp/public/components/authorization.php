@@ -11,7 +11,7 @@ function hasPermission($operation, $vaultId) {
     } else {
         // If the user is not an administrator, check their role and permission
         // Check if the user has permission for the specified operation and vault
-        $queryUserVaultRole =  "SELECT roles.role
+    /*    $queryUserVaultRole =  "SELECT roles.role
                                 FROM vault_permissions, users, roles
                                 WHERE vault_permissions.vault_id = $vaultId      
                                 AND vault_permissions.role_id = roles.role_id             
@@ -19,6 +19,17 @@ function hasPermission($operation, $vaultId) {
                                 AND users.username = '" . $_SESSION['authenticated'] . "'";
     
         $result = $conn->query($queryUserVaultRole);
+*/
+        $stmt = $conn->prepare("SELECT roles.role
+                                FROM vault_permissions, users, roles
+                                WHERE vault_permissions.vault_id = ?      
+                                AND vault_permissions.role_id = roles.role_id             
+                                AND vault_permissions.user_id = users.user_id
+                                AND users.username = ?");
+
+        $stmt->bind_param("is", $vaultId, $_SESSION['authenticated']);
+        $stmt->execute();
+        $result = $stmt->get_result();
 
         if ($result && $result->num_rows > 0) {
             $row = $result->fetch_assoc();

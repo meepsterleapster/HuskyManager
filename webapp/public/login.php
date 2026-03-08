@@ -2,10 +2,24 @@
 
 session_start();
 
+include './components/loggly-logger.php';
+
 $hostname = 'backend-mysql-database';
-$username = 'user';
-$password = 'supersecretpw';
-$database = 'password_manager';
+$username = getenv('MYSQL_USER');
+$password = getenv('MYSQL_PASSWORD');
+$database = getenv('MYSQL_DATABASE');
+
+$max_attempts = 4;
+$lockout_time = 5 * 60; 
+
+if (!isset($_SESSION['login_attempts'])) {
+    $_SESSION['login_attempts'] = 0;
+}
+if (!isset($_SESSION['login_locked_until'])) {
+    $_SESSION['login_locked_until'] = 0;
+}
+
+
 
 $conn = new mysqli($hostname, $username, $password, $database);
 
@@ -23,30 +37,50 @@ if ($conn->connect_error) {
 // Check if the form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
 
-    $sql = "SELECT * FROM users WHERE username = '$username' AND password = '$password' AND approved = 1";
-    $result = $conn->query($sql);
+    $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? AND password = ? AND approved = 1 LIMIT 1");
+    $stmt->bind_param("ss", $username, $password);
+    $stmt->execute();
 
-    if($result->num_rows > 0) {
+    $result = $stmt->get_result();
+
+    #$sql = "SELECT * FROM users WHERE username = '$username' AND password = '$password' AND approved = 1";
+   # $result = $conn->query($sql);
+
+    if($result->num_rows > 0 && time() >= $_SESSION['login_locked_until']) {
        
         $userFromDB = $result->fetch_assoc();
 
         //$_COOKIE['authenticated'] = $username;
-        setcookie('authenticated', $username, time() + 3600, '/');     
+        $_SESSION['authenticated'] = $username;     
 
-        if ($userFromDB['default_role_id'] == 1)
+       if ($userFromDB['default_role_id'] == 1)
         {        
             setcookie('isSiteAdministrator', true, time() + 3600, '/');                
+            $_SESSION['isSiteAdministrator'] = true;
         }else{
             unset($_COOKIE['isSiteAdministrator']); 
             setcookie('isSiteAdministrator', '', -1, '/'); 
+            $_SESSION['isSiteAdministrator'] = false;
         }
         header("Location: index.php");
+        $logger->info("Login successful for username: $username");
         exit();
     } else {
-        $error_message = 'Invalid username or password.';  
+        $_SESSION['login_attempts']++;
+        $error_message = 'Invalid username or password. Attempt #' . $_SESSION['login_attempts'];
+        $logger->warning("Login failed for username: $username");  
+
+        if ($_SESSION['login_attempts'] >= $max_attempts) {
+        $_SESSION['login_locked_until'] = time() + $lockout_time;
+        $error_message = "Too many failed attempts. Try again later.";
+        $logger->warning("User $username potentially attempting a bruteforce attack.");
+        }
+        else if (time() < $_SESSION['login_locked_until']) {
+            $error_message = "Account is temporarily locked. Try again later.";
+        }
     }
 
     $conn->close();
